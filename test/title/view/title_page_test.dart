@@ -17,7 +17,10 @@ void main() {
     testWidgets('renders start button', (tester) async {
       await tester.pumpApp(const TitleView());
 
-      expect(find.byType(ElevatedButton), findsOneWidget);
+      expect(
+        find.byKey(const Key('titlePage_start_elevatedButton')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('starts the game when start button is tapped', (tester) async {
@@ -29,7 +32,7 @@ void main() {
 
       await tester.pumpApp(const TitleView(), navigator: navigator);
 
-      await tester.tap(find.byType(ElevatedButton));
+      await tester.tap(find.byKey(const Key('titlePage_start_elevatedButton')));
 
       verify(() => navigator.pushReplacement<void, void>(any())).called(1);
     });

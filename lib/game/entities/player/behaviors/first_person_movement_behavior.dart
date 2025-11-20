@@ -2,15 +2,16 @@ import 'package:flame/components.dart';
 import 'package:flame_behaviors/flame_behaviors.dart';
 import 'package:echo_world/game/cubit/game/game_bloc.dart';
 import 'package:echo_world/game/entities/player/player.dart';
+import 'package:echo_world/game/level/level_models.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 
 /// Comportamiento de movimiento en primera persona.
-/// 
+///
 /// **Controles:**
 /// - Joystick X (horizontal): Rotación izquierda/derecha (modifica heading)
 /// - Joystick Y (vertical): Movimiento adelante/atrás en dirección del heading
-/// 
+///
 /// **Características:**
 /// - Velocidad máxima: 128 px/s (normal) / 56 px/s (sigilo)
 /// - Rotación: 1.5 rad/s (~86°/s) con aceleración suave
@@ -31,14 +32,16 @@ class FirstPersonMovementBehavior extends Behavior {
   double _currentTurnVelocity = 0.0;
   static const double turnAcceleration = 6.0; // rad/s²
 
+  double _stepAccum = 0;
+
   @override
   void update(double dt) {
     if (parent is! PlayerComponent) return;
-    
+
     final player = parent as PlayerComponent;
     final game = player.gameRef;
     final input = game.input;
-    
+
     // Joystick: x = turn, y = forward/backward
     // Leer input y proteger magnitud
     final rawMove = input.movement;
@@ -46,24 +49,25 @@ class FirstPersonMovementBehavior extends Behavior {
 
     // Rotación con aceleración suave (aplicar sensibilidad)
     final targetTurnVelocity = move.x * turnSpeed * turnSensitivity;
-    
+
     // Interpolar hacia la velocidad objetivo (suavizado)
-    _currentTurnVelocity = _currentTurnVelocity + 
+    _currentTurnVelocity =
+        _currentTurnVelocity +
         (targetTurnVelocity - _currentTurnVelocity) * turnAcceleration * dt;
-    
+
     // Aplicar rotación suavizada
     player.heading += _currentTurnVelocity * dt;
-    
+
     // Normalizar heading a [-π, π]
     while (player.heading > math.pi) player.heading -= 2 * math.pi;
     while (player.heading < -math.pi) player.heading += 2 * math.pi;
-    
+
     // Movimiento: adelante/atrás en dirección del heading
     final isStealth = gameBloc.state.estaAgachado;
     final baseVelocity = isStealth ? stealthSpeed : maxSpeed;
     final velocity = baseVelocity * moveSensitivity;
     final speed = -move.y * velocity; // Invertir: joystick arriba = adelante
-    
+
     // Calcular desplazamiento en dirección del heading
     final dx = speed * dt * math.cos(player.heading);
     final dy = speed * dt * math.sin(player.heading);
@@ -103,6 +107,18 @@ class FirstPersonMovementBehavior extends Behavior {
       );
       if (game.levelManager.isRectWalkable(rectY)) {
         player.position.setFrom(proposedY);
+      }
+    }
+
+    // Emitir sonido de pasos
+    if (speed.abs() > 0.1) {
+      _stepAccum += speed.abs() * dt;
+      final threshold = isStealth ? 22.0 : 34.0;
+      if (_stepAccum >= threshold) {
+        _stepAccum = 0;
+        final nivel = isStealth ? NivelSonido.bajo : NivelSonido.medio;
+        final ttl = isStealth ? 0.35 : 0.6;
+        game.emitSound(player.position.clone(), nivel, ttl: ttl);
       }
     }
   }

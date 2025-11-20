@@ -232,92 +232,6 @@ class LevelManagerComponent extends Component with HasGameRef {
     return true;
   }
 
-  // OBSOLETO: Reemplazado por ChunkInicioSeguro() en level_chunks.dart
-  // LevelData _chunkInicioSeguro() {
-  //   const w = 20, h = 12;
-  //   final grid = List.generate(
-  //     h,
-  //     (y) => List.generate(
-  //       w,
-  //       (x) => (y == 0 || y == h - 1 || x == 0 || x == w - 1)
-  //           ? CeldaData.pared
-  //           : CeldaData.suelo,
-  //     ),
-  //   );
-  //   return _SimpleLevel(
-  //     ancho: w,
-  //     alto: h,
-  //     grid: grid,
-  //     nombre: 'Inicio Seguro',
-  //     dificultad: Dificultad.tutorial,
-  //     sector: Sector.contencion,
-  //   );
-  // }
-
-  // OBSOLETO: Reemplazado por ChunkAbismoSalto() en level_chunks.dart
-  // LevelData _chunkAbismoSalto() {
-  //   const w = 20, h = 12;
-  //   final grid = List.generate(
-  //     h,
-  //     (y) => List.generate(
-  //       w,
-  //       (x) {
-  //         if (y == 0 || y == h - 1 || x == 0 || x == w - 1)
-  //           return CeldaData.pared;
-  //         // crear una franja de "abismo" en el medio
-  //         if (y == 7 && x > 3 && x < w - 4) return CeldaData.abismo;
-  //         return CeldaData.suelo;
-  //       },
-  //     ),
-  //   );
-  //   return _SimpleLevel(
-  //     ancho: w,
-  //     alto: h,
-  //     grid: grid,
-  //     nombre: 'Abismo Salto',
-  //     dificultad: Dificultad.tutorial,
-  //     sector: Sector.contencion,
-  //   );
-  // }
-
-  // OBSOLETO: Reemplazado por ChunkSigiloCazador() en level_chunks.dart
-  // LevelData _chunkSigiloCazador() {
-  //   const w = 20, h = 12;
-  //   final grid = List.generate(
-  //     h,
-  //     (y) => List.generate(
-  //       w,
-  //       (x) {
-  //         if (y == 0 || y == h - 1 || x == 0 || x == w - 1)
-  //           return CeldaData.pared;
-  //         // algunos muros "destructibles" de cobertura
-  //         if ((x == 8 && y >= 3 && y <= 5) || (x == 12 && y >= 6 && y <= 8)) {
-  //           return const CeldaData(tipo: TipoCelda.pared, esDestructible: true);
-  //         }
-  //         return CeldaData.suelo;
-  //       },
-  //     ),
-  //   );
-  //
-  //   // Spawnear un Cazador en el centro del chunk
-  //   final entidades = [
-  //     EntidadSpawn(
-  //       tipoEnemigo: CazadorComponent,
-  //       posicion: Vector2(10, 6), // Centro del chunk
-  //     ),
-  //   ];
-  //
-  //   return _SimpleLevel(
-  //     ancho: w,
-  //     alto: h,
-  //     grid: grid,
-  //     entidades: entidades,
-  //     nombre: 'Sigilo Cazador',
-  //     dificultad: Dificultad.tutorial,
-  //     sector: Sector.contencion,
-  //   );
-  // }
-
   LevelData _chunkVigiaTest() {
     const w = 20;
     const h = 12;
@@ -478,45 +392,6 @@ class LevelManagerComponent extends Component with HasGameRef {
       nombre: 'Sala Segura',
     );
   }
-
-  /// Chunk 5: Laberinto Simple
-  /// Objetivo: Navegación + 1 Cazador patrullando
-  // OBSOLETO: Reemplazado por ChunkLaberintoVertical() en level_chunks.dart
-  // LevelData _chunkLaberintoSimple() {
-  //   const w = 20, h = 14;
-  //   final grid = List.generate(
-  //     h,
-  //     (y) => List.generate(
-  //       w,
-  //       (x) {
-  //         if (y == 0 || y == h - 1 || x == 0 || x == w - 1)
-  //           return CeldaData.pared;
-  //
-  //         // Crear un laberinto simple con forma de "E"
-  //         if (x == 10 && (y >= 2 && y <= 4 || y >= 7 && y <= 9))
-  //           return CeldaData.pared;
-  //         if (y == 6 && x >= 5 && x <= 15) return CeldaData.pared;
-  //         if (x == 5 && y >= 2 && y <= 11) return CeldaData.pared;
-  //
-  //         return CeldaData.suelo;
-  //       },
-  //     ),
-  //   );
-  //
-  //   final entidades = [
-  //     EntidadSpawn(tipoEnemigo: CazadorComponent, posicion: Vector2(12, 7)),
-  //   ];
-  //
-  //   return _SimpleLevel(
-  //     ancho: w,
-  //     alto: h,
-  //     grid: grid,
-  //     entidades: entidades,
-  //     nombre: 'Laberinto Simple',
-  //     dificultad: Dificultad.baja,
-  //     sector: Sector.contencion,
-  //   );
-  // }
 
   /// Chunk 6: Puzzle de Abismos
   /// Objetivo: Combinar SideScroll + plataformeo con timing
@@ -747,48 +622,6 @@ class LevelManagerComponent extends Component with HasGameRef {
 
   /// Chunk 13: Arena
   /// Objetivo: 2 Brutos + 1 Cazador en sala cerrada (combate inevitable)
-  // OBSOLETO: Reemplazado por ChunkArenaBruto() en level_chunks.dart
-  // LevelData _chunkArena() {
-  //   const w = 20, h = 16;
-  //   final grid = List.generate(
-  //     h,
-  //     (y) => List.generate(
-  //       w,
-  //       (x) {
-  //         if (y == 0 || y == h - 1 || x == 0 || x == w - 1)
-  //           return CeldaData.pared;
-  //
-  //         // Sala amplia (arena) con algunos pilares
-  //         if ((x == 6 || x == 14) && (y == 5 || y == 11))
-  //           return CeldaData.pared;
-  //
-  //         // Paredes destructibles para táctica
-  //         if ((x == 10 && y >= 4 && y <= 6) ||
-  //             (x == 10 && y >= 10 && y <= 12)) {
-  //           return const CeldaData(tipo: TipoCelda.pared, esDestructible: true);
-  //         }
-  //
-  //         return CeldaData.suelo;
-  //       },
-  //     ),
-  //   );
-  //
-  //   final entidades = [
-  //     EntidadSpawn(tipoEnemigo: BrutoComponent, posicion: Vector2(6, 8)),
-  //     EntidadSpawn(tipoEnemigo: BrutoComponent, posicion: Vector2(14, 8)),
-  //     EntidadSpawn(tipoEnemigo: CazadorComponent, posicion: Vector2(10, 4)),
-  //   ];
-  //
-  //   return _SimpleLevel(
-  //     ancho: w,
-  //     alto: h,
-  //     grid: grid,
-  //     entidades: entidades,
-  //     nombre: 'Arena',
-  //     dificultad: Dificultad.alta,
-  //     sector: Sector.salida,
-  //   );
-  // }
 
   /// Chunk 14: Infierno (Final Boss)
   /// Objetivo: Todos los arquetipos + requiere los 3 enfoques + nivel más difícil

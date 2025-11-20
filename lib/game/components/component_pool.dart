@@ -69,19 +69,7 @@ class ComponentPool<T extends Component> {
     if (_available.length < maxSize) {
       _available.add(component);
     }
-    // Si hemos alcanzado el límite, dejar que el GC lo limpie
   }
-  // OBSOLETO (duplicado): release con intento de reset(). Mantener comentado.
-  // void release(T component) {
-  //   _inUse.remove(component);
-  //   // OBSOLETO: Lógica de reset() depende de métodos no implementados
-  //   // if (component is dynamic && component.reset != null) {
-  //   //   component.reset();
-  //   // }
-  //   if (_available.length < maxSize) {
-  //     _available.add(component);
-  //   }
-  // }
 
   /// Libera todos los objetos del pool (útil para cleanup)
   void clear() {

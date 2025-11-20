@@ -52,7 +52,6 @@ class PlayerComponent extends PositionedEntity
     for (final b in current) {
       remove(b);
     }
-    // OBSOLETO: Si existen behaviors que no se usan en ningún enfoque, comentar aquí para futura eliminación.
 
     switch (nuevo) {
       case Enfoque.topDown:

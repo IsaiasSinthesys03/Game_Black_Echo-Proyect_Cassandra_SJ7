@@ -1,24 +1,14 @@
 import 'dart:async';
-// import 'dart:math' as math; // OBSOLETO: Ya no se usa para raycasting en overlay
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:echo_world/game/audio/audio_manager.dart';
 import 'package:echo_world/game/game.dart';
 import 'package:echo_world/game/cubit/checkpoint/cubit.dart';
-// Importaciones específicas de GameBloc y GameState ya expuestas vía game.dart -> removidas.
-// import 'package:echo_world/game/cubit/game/game_bloc.dart'; // OBSOLETO
-// import 'package:echo_world/game/cubit/game/game_state.dart'; // OBSOLETO
-// import 'package:echo_world/game/black_echo_game.dart'; // OBSOLETO (exportado por game.dart)
 import 'package:echo_world/gen/assets.gen.dart';
 import 'package:echo_world/game/level/level_models.dart';
 import 'package:echo_world/lore/lore.dart';
-// import 'package:echo_world/l10n/l10n.dart';
-// import 'package:echo_world/game/components/components.dart'; // OBSOLETO: exportado por game.dart
 import 'package:echo_world/loading/cubit/cubit.dart';
 import 'package:flame/game.dart' hide Route;
 import 'package:flame_audio/bgm.dart';
-// import 'package:flutter/scheduler.dart' show Ticker; // OBSOLETO: Ya no se usa Ticker en HUD FP
-// import 'package:echo_world/game/level/level_manager.dart'; // OBSOLETO: Para tileSize y currentGrid (ahora en Flame)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -98,36 +88,7 @@ class _GameViewState extends State<GameView> {
           prev.estadoJugador != curr.estadoJugador,
       listener: (context, state) {
         final game = _game! as BlackEchoGame;
-        game.overlays.clear();
-        // Reanudar el motor si está pausado y no estamos en pausa explícita.
-        // OBSOLETO: scan ya no pausa el motor por defecto.
-        if (game.paused && state.estadoJuego != EstadoJuego.pausado) {
-          game.resumeEngine();
-        }
-        if (state.estadoJuego == EstadoJuego.pausado) {
-          game.overlays.add('PauseMenu');
-          return;
-        }
-        if (state.estadoJugador == EstadoJugador.atrapado) {
-          game.overlays.add('OverlayFracaso');
-          return;
-        }
-        switch (state.enfoqueActual) {
-          case Enfoque.topDown:
-            game.overlays.add('HudTopDown');
-          case Enfoque.sideScroll:
-            game.overlays.add('HudSideScroll');
-          case Enfoque.firstPerson:
-            game.overlays.add('HudFirstPerson');
-          // case Enfoque.scan: // OBSOLETO
-          //   // game.pauseEngine();
-          //   // game.overlays.add('HudScan');
-          //   game.overlays.add('HudFirstPerson');
-          default:
-            break;
-        }
-        // OBSOLETO: Punto único para marcar overlays en desuso. Si se elimina definitivamente un modo,
-        // comentar su builder en overlayBuilderMap y añadir nota aquí para limpieza futura.
+        _updateOverlays(game, state);
       },
       child: Stack(
         children: [
@@ -139,12 +100,19 @@ class _GameViewState extends State<GameView> {
                     _HudTopDown(game! as BlackEchoGame),
                 'HudSideScroll': (ctx, game) =>
                     _HudSideScroll(game! as BlackEchoGame),
-                // 'HudScan': (ctx, game) => _HudScan(), // OBSOLETO
                 'HudFirstPerson': (ctx, game) =>
                     _HudFirstPerson(game! as BlackEchoGame),
                 'PauseMenu': (ctx, game) => _PauseMenu(),
                 'OverlayFracaso': (ctx, game) => _OverlayFracaso(),
               },
+              initialActiveOverlays: [
+                switch (context.read<GameBloc>().state.enfoqueActual) {
+                  Enfoque.topDown => 'HudTopDown',
+                  Enfoque.sideScroll => 'HudSideScroll',
+                  Enfoque.firstPerson => 'HudFirstPerson',
+                  _ => 'HudTopDown',
+                },
+              ],
             ),
           ),
           // Overlay de ruido mental (se muestra sobre el juego cuando ruidoMental > 25)
@@ -205,6 +173,32 @@ class _GameViewState extends State<GameView> {
         ],
       ),
     );
+  }
+
+  void _updateOverlays(BlackEchoGame game, GameState state) {
+    game.overlays.clear();
+    // Reanudar el motor si está pausado y no estamos en pausa explícita.
+    if (game.paused && state.estadoJuego != EstadoJuego.pausado) {
+      game.resumeEngine();
+    }
+    if (state.estadoJuego == EstadoJuego.pausado) {
+      game.overlays.add('PauseMenu');
+      return;
+    }
+    if (state.estadoJugador == EstadoJugador.atrapado) {
+      game.overlays.add('OverlayFracaso');
+      return;
+    }
+    switch (state.enfoqueActual) {
+      case Enfoque.topDown:
+        game.overlays.add('HudTopDown');
+      case Enfoque.sideScroll:
+        game.overlays.add('HudSideScroll');
+      case Enfoque.firstPerson:
+        game.overlays.add('HudFirstPerson');
+      default:
+        break;
+    }
   }
 }
 
@@ -277,12 +271,22 @@ class _HudTopDown extends StatelessWidget {
                                 color: Colors.black,
                               ),
                             ),
-                            FractionallySizedBox(
-                              widthFactor: state.energiaGrito / 100,
-                              child: Container(
-                                height: barHeight,
-                                color: const Color(0xFF00FFFF),
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(
+                                begin: 0,
+                                end: state.energiaGrito / 100,
                               ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                              builder: (context, value, child) {
+                                return FractionallySizedBox(
+                                  widthFactor: value.clamp(0.0, 1.0),
+                                  child: Container(
+                                    height: barHeight,
+                                    color: const Color(0xFF00FFFF),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -329,12 +333,22 @@ class _HudTopDown extends StatelessWidget {
                                 color: Colors.black,
                               ),
                             ),
-                            FractionallySizedBox(
-                              widthFactor: state.ruidoMental / 100,
-                              child: Container(
-                                height: barHeight,
-                                color: const Color(0xFF8A2BE2),
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(
+                                begin: 0,
+                                end: state.ruidoMental / 100,
                               ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                              builder: (context, value, child) {
+                                return FractionallySizedBox(
+                                  widthFactor: value.clamp(0.0, 1.0),
+                                  child: Container(
+                                    height: barHeight,
+                                    color: const Color(0xFF8A2BE2),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -706,300 +720,325 @@ class _HudFirstPerson extends StatelessWidget {
     final absorberTop = (80.0 * hudScale).clamp(60.0, 120.0);
     final absorberFont = (18.0 * hudScale).clamp(14.0, 24.0);
     final bottomSpacing = (12.0 * hudScale).clamp(8.0, 20.0);
-    return Stack(
-      children: [
-        // Barras de estado superiores
-        Positioned(
-          top: spacingTop + MediaQuery.of(context).padding.top,
-          left: spacingSide,
-          right: spacingSide,
-          child: Row(
-            children: [
-              // Energía Grito
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ENERGÍA',
-                      style: TextStyle(
-                        color: const Color(0xFF00FFFF),
-                        fontSize: fontLabel,
-                        fontWeight: FontWeight.bold,
-                        shadows: const [
-                          Shadow(color: Color(0xFF00FFFF), blurRadius: 5),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 4 * hudScale),
-                    BlocSelector<GameBloc, GameState, int>(
-                      selector: (state) => state.energiaGrito,
-                      builder: (context, energia) {
-                        final progress = energia / 100.0;
-                        return Container(
-                          height: barHeight,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: const Color(0xFF00FFFF),
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: Colors.black.withOpacity(0.5),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                energia >= 50
-                                    ? const Color(
-                                        0xFF00FFFF,
-                                      ) // Cyan: con escudo
-                                    : const Color(
-                                        0xFFFF4444,
-                                      ), // Rojo: vulnerable
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    BlocSelector<GameBloc, GameState, int>(
-                      selector: (state) => state.energiaGrito,
-                      builder: (context, energia) {
-                        return Text(
-                          '$energia / 100',
+    return SizedBox.expand(
+      child: SafeArea(
+        child: Stack(
+          children: [
+            // Barras de estado superiores
+            Positioned(
+              top: spacingTop + MediaQuery.of(context).padding.top,
+              left: spacingSide,
+              right: spacingSide,
+              child: Row(
+                children: [
+                  // Energía Grito
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ENERGÍA',
                           style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: fontSmall,
+                            color: const Color(0xFF00FFFF),
+                            fontSize: fontLabel,
+                            fontWeight: FontWeight.bold,
+                            shadows: const [
+                              Shadow(color: Color(0xFF00FFFF), blurRadius: 5),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 16 * hudScale),
-              // Ruido Mental
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'RUIDO MENTAL',
-                      style: TextStyle(
-                        color: const Color(0xFF8A2BE2),
-                        fontSize: fontLabel,
-                        fontWeight: FontWeight.bold,
-                        shadows: const [
-                          Shadow(color: Color(0xFF8A2BE2), blurRadius: 5),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 4 * hudScale),
-                    BlocSelector<GameBloc, GameState, int>(
-                      selector: (state) => state.ruidoMental,
-                      builder: (context, ruido) {
-                        final progress = ruido / 100.0;
-                        return Container(
-                          height: barHeight,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: const Color(0xFF8A2BE2),
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: Colors.black.withOpacity(0.5),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFF8A2BE2),
+                        ),
+                        SizedBox(height: 4 * hudScale),
+                        BlocSelector<GameBloc, GameState, int>(
+                          selector: (state) => state.energiaGrito,
+                          builder: (context, energia) {
+                            final progress = energia / 100.0;
+                            return Container(
+                              height: barHeight,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF00FFFF),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ),
-                          ),
-                        );
-                      },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween<double>(
+                                    begin: 0,
+                                    end: progress,
+                                  ),
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOut,
+                                  builder: (context, value, child) {
+                                    return LinearProgressIndicator(
+                                      value: value,
+                                      backgroundColor: Colors.black.withOpacity(
+                                        0.5,
+                                      ),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        energia >= 50
+                                            ? const Color(0xFF00FFFF)
+                                            : const Color(0xFFFF4444),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        BlocSelector<GameBloc, GameState, int>(
+                          selector: (state) => state.energiaGrito,
+                          builder: (context, energia) {
+                            return Text(
+                              '$energia / 100',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: fontSmall,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                    BlocSelector<GameBloc, GameState, int>(
-                      selector: (state) => state.ruidoMental,
-                      builder: (context, ruido) {
-                        return Text(
-                          '$ruido / 100',
+                  ),
+                  SizedBox(width: 16 * hudScale),
+                  // Ruido Mental
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'RUIDO MENTAL',
                           style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: fontSmall,
+                            color: const Color(0xFF8A2BE2),
+                            fontSize: fontLabel,
+                            fontWeight: FontWeight.bold,
+                            shadows: const [
+                              Shadow(color: Color(0xFF8A2BE2), blurRadius: 5),
+                            ],
                           ),
-                        );
-                      },
+                        ),
+                        SizedBox(height: 4 * hudScale),
+                        BlocSelector<GameBloc, GameState, int>(
+                          selector: (state) => state.ruidoMental,
+                          builder: (context, ruido) {
+                            final progress = ruido / 100.0;
+                            return Container(
+                              height: barHeight,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF8A2BE2),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween<double>(
+                                    begin: 0,
+                                    end: progress,
+                                  ),
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOut,
+                                  builder: (context, value, child) {
+                                    return LinearProgressIndicator(
+                                      value: value,
+                                      backgroundColor: Colors.black.withOpacity(
+                                        0.5,
+                                      ),
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                            Color(0xFF8A2BE2),
+                                          ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        BlocSelector<GameBloc, GameState, int>(
+                          selector: (state) => state.ruidoMental,
+                          builder: (context, ruido) {
+                            return Text(
+                              '$ruido / 100',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: fontSmall,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
 
-        // Botón [ABSORBER] contextual (centro-superior)
-        BlocSelector<GameBloc, GameState, bool>(
-          selector: (s) => s.puedeAbsorber,
-          builder: (context, puedeAbsorber) {
-            if (!puedeAbsorber) return const SizedBox.shrink();
-            return Positioned(
-              top: absorberTop,
+            // Botón [ABSORBER] contextual (centro-superior)
+            BlocSelector<GameBloc, GameState, bool>(
+              selector: (s) => s.puedeAbsorber,
+              builder: (context, puedeAbsorber) {
+                if (!puedeAbsorber) return const SizedBox.shrink();
+                return Positioned(
+                  top: absorberTop,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: const Color(0xFF000000),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                        elevation: 8,
+                      ),
+                      onPressed: () {
+                        bloc.add(AbsorcionConfirmada());
+                        // Destruir núcleo más cercano con VFX
+                        final nucleos = game.world.children
+                            .query<NucleoResonanteComponent>();
+                        if (nucleos.isNotEmpty) {
+                          final closest = nucleos.reduce(
+                            (a, b) =>
+                                a.position.distanceTo(game.player.position) <
+                                    b.position.distanceTo(game.player.position)
+                                ? a
+                                : b,
+                          );
+                          final absorptionVfx = AbsorptionVfxComponent(
+                            nucleusPosition: closest.position.clone(),
+                            playerPosition: game.player.position.clone(),
+                          );
+                          game.world.add(absorptionVfx);
+                          AudioManager.instance.playSfx('absorb_inhale');
+                          closest.removeFromParent();
+                        }
+                      },
+                      child: Text(
+                        '[ABSORBER]',
+                        style: TextStyle(
+                          fontSize: absorberFont,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Botones de acción (parte inferior)
+            Positioned(
+              bottom: bottomSpacing,
               left: 0,
               right: 0,
-              child: Center(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD700),
-                    foregroundColor: const Color(0xFF000000),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxWidth = constraints.maxWidth;
+                  final buttonSpacing = 8.0 * hudScale;
+                  final buttons = <Widget>[
+                    _HudButton(
+                      label: 'ENFOQUE',
+                      onPressed: () => bloc.add(EnfoqueCambiado()),
                     ),
-                    elevation: 8,
-                  ),
-                  onPressed: () {
-                    bloc.add(AbsorcionConfirmada());
-                    // Destruir núcleo más cercano con VFX
-                    final nucleos = game.world.children
-                        .query<NucleoResonanteComponent>();
-                    if (nucleos.isNotEmpty) {
-                      final closest = nucleos.reduce(
-                        (a, b) =>
-                            a.position.distanceTo(game.player.position) <
-                                b.position.distanceTo(game.player.position)
-                            ? a
-                            : b,
-                      );
-                      final absorptionVfx = AbsorptionVfxComponent(
-                        nucleusPosition: closest.position.clone(),
-                        playerPosition: game.player.position.clone(),
-                      );
-                      game.world.add(absorptionVfx);
-                      AudioManager.instance.playSfx('absorb_inhale');
-                      closest.removeFromParent();
-                    }
-                  },
-                  child: Text(
-                    '[ABSORBER]',
-                    style: TextStyle(
-                      fontSize: absorberFont,
-                      fontWeight: FontWeight.bold,
+                    _HudButton(
+                      label: 'ECO',
+                      onPressed: () {
+                        final p = game.player.position.clone();
+                        game.world.add(EcholocationVfxComponent(origin: p));
+                        game.emitSound(p, NivelSonido.medio, ttl: 0.8);
+                        bloc.add(EcoActivado());
+                        if (bloc.state.ruidoMental > 50) {
+                          final nuevo = (bloc.state.ruidoMental + 0.5)
+                              .clamp(0, 100)
+                              .toInt();
+                          bloc.add(
+                            EcoNarrativoAbsorbido(
+                              'sobrecarga_sensorial',
+                              nuevo - bloc.state.ruidoMental,
+                            ),
+                          );
+                        }
+                      },
                     ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-
-        // Botones de acción (parte inferior)
-        Positioned(
-          bottom: bottomSpacing,
-          left: 0,
-          right: 0,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final maxWidth = constraints.maxWidth;
-              final buttonSpacing = 8.0 * hudScale;
-              final buttons = <Widget>[
-                _HudButton(
-                  label: 'ENFOQUE',
-                  onPressed: () => bloc.add(EnfoqueCambiado()),
-                ),
-                _HudButton(
-                  label: 'ECO',
-                  onPressed: () {
-                    final p = game.player.position.clone();
-                    game.world.add(EcholocationVfxComponent(origin: p));
-                    game.emitSound(p, NivelSonido.medio, ttl: 0.8);
-                    bloc.add(EcoActivado());
-                    if (bloc.state.ruidoMental > 50) {
-                      final nuevo = (bloc.state.ruidoMental + 0.5)
-                          .clamp(0, 100)
-                          .toInt();
-                      bloc.add(
-                        EcoNarrativoAbsorbido(
-                          'sobrecarga_sensorial',
-                          nuevo - bloc.state.ruidoMental,
-                        ),
-                      );
-                    }
-                  },
-                ),
-                _HudButton(
-                  label: 'RUPTURA',
-                  onPressed: () async {
-                    if (bloc.state.energiaGrito >= 40) {
-                      await game.player.rupture();
-                      bloc.add(GritoActivado());
-                    }
-                  },
-                ),
-                BlocSelector<GameBloc, GameState, bool>(
-                  selector: (s) => s.estaAgachado,
-                  builder: (context, estaAgachado) {
-                    return GestureDetector(
-                      onTapDown: (_) => bloc.add(ModoSigiloActivado()),
-                      onTapUp: (_) => bloc.add(ModoSigiloDesactivado()),
-                      onTapCancel: () => bloc.add(ModoSigiloDesactivado()),
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: estaAgachado
-                              ? const Color(0xFF00FFFF)
-                              : null,
-                          foregroundColor: estaAgachado
-                              ? const Color(0xFF000000)
-                              : null,
-                        ),
-                        child: Text(
-                          estaAgachado ? 'SIGILO ✓' : 'SIGILO',
-                          style: TextStyle(
-                            fontWeight: estaAgachado
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                    _HudButton(
+                      label: 'RUPTURA',
+                      onPressed: () async {
+                        if (bloc.state.energiaGrito >= 40) {
+                          await game.player.rupture();
+                          bloc.add(GritoActivado());
+                        }
+                      },
+                    ),
+                    BlocSelector<GameBloc, GameState, bool>(
+                      selector: (s) => s.estaAgachado,
+                      builder: (context, estaAgachado) {
+                        return GestureDetector(
+                          onTapDown: (_) => bloc.add(ModoSigiloActivado()),
+                          onTapUp: (_) => bloc.add(ModoSigiloDesactivado()),
+                          onTapCancel: () => bloc.add(ModoSigiloDesactivado()),
+                          child: ElevatedButton(
+                            onPressed: () {},
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: estaAgachado
+                                  ? const Color(0xFF00FFFF)
+                                  : null,
+                              foregroundColor: estaAgachado
+                                  ? const Color(0xFF000000)
+                                  : null,
+                            ),
+                            child: Text(
+                              estaAgachado ? 'SIGILO ✓' : 'SIGILO',
+                              style: TextStyle(
+                                fontWeight: estaAgachado
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ];
-              // Calcular ancho total aproximado (botón ~100 + padding); si excede wrap
-              final estimatedPerButton = 100.0 * hudScale + buttonSpacing;
-              final fitsSingleRow =
-                  estimatedPerButton * buttons.length <= maxWidth;
-              if (fitsSingleRow) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: buttons
-                      .expand((b) => [b, SizedBox(width: buttonSpacing)])
-                      .toList()
-                      .sublist(0, buttons.length * 2 - 1),
-                );
-              } else {
-                // Wrap en dos filas centradas
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: buttonSpacing,
-                      runSpacing: buttonSpacing,
-                      children: buttons,
+                        );
+                      },
                     ),
-                  ],
-                );
-              }
-            },
-          ),
+                  ];
+                  // Calcular ancho total aproximado (botón ~100 + padding); si excede wrap
+                  final estimatedPerButton = 100.0 * hudScale + buttonSpacing;
+                  final fitsSingleRow =
+                      estimatedPerButton * buttons.length <= maxWidth;
+                  if (fitsSingleRow) {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: buttons
+                          .expand((b) => [b, SizedBox(width: buttonSpacing)])
+                          .toList()
+                          .sublist(0, buttons.length * 2 - 1),
+                    );
+                  } else {
+                    // Wrap en dos filas centradas
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: buttonSpacing,
+                          runSpacing: buttonSpacing,
+                          children: buttons,
+                        ),
+                      ],
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

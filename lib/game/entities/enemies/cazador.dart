@@ -13,7 +13,8 @@ class CazadorComponent extends PositionedEntity with CollisionCallbacks {
   CazadorComponent({
     required super.position,
     this.radioBajo = 96, // 3 tiles
-    this.radioMedio = 480, // 15 tiles
+    this.radioMedio = 384, // 12 tiles
+    this.radioAlto = 576, // 18 tiles
   }) : super(
          size: Vector2.all(28),
          anchor: Anchor.center,
@@ -22,24 +23,26 @@ class CazadorComponent extends PositionedEntity with CollisionCallbacks {
 
   final double radioBajo;
   final double radioMedio;
+  final double radioAlto;
 
-    /// Resetea el estado del enemigo para reuso por ComponentPool
-    void reset() {
-      // Reiniciar FSM a ATORMENTADO (solo si ya fue cargado)
-      try {
-        findBehavior<HearingBehavior>().reset();
-      } catch (_) {}
-      try {
-        findBehavior<PositionalAudioBehavior>().reset();
-      } catch (_) {}
-      try {
-        findBehavior<PatrolBehavior>().reset();
-      } catch (_) {}
-      try {
-        findBehavior<AIMovementBehavior>().reset();
-      } catch (_) {}
-      // ...otros behaviors si se añaden en el futuro
-    }
+  /// Resetea el estado del enemigo para reuso por ComponentPool
+  void reset() {
+    // Reiniciar FSM a ATORMENTADO (solo si ya fue cargado)
+    try {
+      findBehavior<HearingBehavior>().reset();
+    } catch (_) {}
+    try {
+      findBehavior<PositionalAudioBehavior>().reset();
+    } catch (_) {}
+    try {
+      findBehavior<PatrolBehavior>().reset();
+    } catch (_) {}
+    try {
+      findBehavior<AIMovementBehavior>().reset();
+    } catch (_) {}
+    // ...otros behaviors si se añaden en el futuro
+  }
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
@@ -61,21 +64,24 @@ class CazadorComponent extends PositionedEntity with CollisionCallbacks {
         HearingBehavior(
           radioBajo: radioBajo,
           radioMedio: radioMedio,
+          radioAlto: radioAlto,
         ),
       );
       await add(PatrolBehavior());
       await add(AIMovementBehavior());
-      await add(PositionalAudioBehavior()); // Audio posicional reactivo a la FSM
+      await add(
+        PositionalAudioBehavior(),
+      ); // Audio posicional reactivo a la FSM
     }
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    
+
     // NO renderizar en first-person: el raycaster proyecta los enemigos en 3D
     final game = findParent<BlackEchoGame>();
-    if (game != null && 
+    if (game != null &&
         game.gameBloc.state.enfoqueActual == Enfoque.firstPerson) {
       return;
     }

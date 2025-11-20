@@ -9,13 +9,13 @@ import 'package:flame_behaviors/flame_behaviors.dart';
 import 'package:flutter/painting.dart';
 
 class EcholocationVfxComponent extends PositionComponent
-  with HasGameRef<BlackEchoGame> {
+    with HasGameRef<BlackEchoGame> {
   EcholocationVfxComponent({required Vector2 origin, this.maxRadius = 320})
-    : _radius = 0,
+    : radius = 0,
       super(position: origin, anchor: Anchor.center);
 
   final double maxRadius;
-  double _radius;
+  double radius;
   double _alpha = 1;
   final Set<int> _illuminatedEntities = {}; // Track para evitar duplicados
 
@@ -27,16 +27,16 @@ class EcholocationVfxComponent extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
-    final oldRadius = _radius;
-    _radius += 220 * dt; // speed
-    _alpha = (1 - (_radius / maxRadius)).clamp(0.0, 1.0);
+    final oldRadius = radius;
+    radius += 220 * dt; // speed
+    _alpha = (1 - (radius / maxRadius)).clamp(0.0, 1.0);
 
     // Detectar entidades que el pulso acaba de alcanzar
-    if (_radius < maxRadius) {
-      _detectAndIlluminate(oldRadius, _radius);
+    if (radius < maxRadius) {
+      _detectAndIlluminate(oldRadius, radius);
     }
 
-    if (_radius >= maxRadius) {
+    if (radius >= maxRadius) {
       removeFromParent();
     }
   }
@@ -114,54 +114,54 @@ class EcholocationVfxComponent extends PositionComponent
   @override
   void render(Canvas canvas) {
     final enfoque = gameRef.gameBloc.state.enfoqueActual;
-    
+
     // En first-person: renderizar como efecto de pantalla completa (flash/pulso)
     if (enfoque == Enfoque.firstPerson) {
       final viewport = gameRef.camera.viewport.virtualSize;
-      
+
       // Pulso cian que se expande desde el centro
       final centerX = viewport.x / 2;
       final centerY = viewport.y / 2;
-      
+
       // Radio normalizado (0.0 a 1.0)
-      final normalizedRadius = _radius / maxRadius;
-      
+      final normalizedRadius = radius / maxRadius;
+
       // Calcular radio en píxeles de viewport
       final screenRadius = normalizedRadius * (viewport.x / 2);
-      
+
       // Color con transparencia decreciente
       final alpha = _alpha * 0.3; // Más sutil en FP
       final color = _paint.color.withValues(alpha: alpha);
-      
+
       // Dibujar anillo pulsante
       final ringPaint = Paint()
         ..color = color
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3;
-      
+
       canvas.drawCircle(
         Offset(centerX, centerY),
         screenRadius,
         ringPaint,
       );
-      
+
       // Dibujar flash de pantalla (muy sutil)
       if (normalizedRadius < 0.3) {
         final flashPaint = Paint()
           ..color = color.withValues(alpha: alpha * 0.1)
           ..style = PaintingStyle.fill;
-        
+
         canvas.drawRect(
           Rect.fromLTWH(0, 0, viewport.x, viewport.y),
           flashPaint,
         );
       }
-      
+
       return;
     }
-    
+
     // En top-down/side-scroll: renderizar como círculo expandiéndose
     final color = _paint.color.withValues(alpha: _alpha);
-    canvas.drawCircle(Offset.zero, _radius, _paint..color = color);
+    canvas.drawCircle(Offset.zero, radius, _paint..color = color);
   }
 }

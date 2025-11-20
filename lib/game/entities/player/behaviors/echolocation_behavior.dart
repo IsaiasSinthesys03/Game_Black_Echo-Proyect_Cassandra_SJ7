@@ -10,7 +10,7 @@ class EcholocationBehavior extends Behavior<PositionedEntity> {
 
   void triggerEcho(Vector2 origin) {
     // SFX: reproducir ping de ecolocalización
-    AudioManager.instance.playSfx('eco_ping', volume: 0.7);
+    AudioManager.instance.playSfx('eco_ping', volume: 0.8);
 
     parent.parent?.add(EcholocationVfxComponent(origin: origin));
   }

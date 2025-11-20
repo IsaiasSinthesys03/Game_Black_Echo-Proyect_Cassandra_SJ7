@@ -19,20 +19,16 @@ import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/helpers.dart';
 
+import 'package:echo_world/game/cubit/checkpoint/checkpoint_bloc.dart';
+import 'package:echo_world/game/cubit/checkpoint/checkpoint_state.dart';
+import 'package:echo_world/lore/lore.dart';
+import 'package:hydrated_bloc/hydrated_bloc.dart';
+
 class _FakeAssetSource extends Fake implements AssetSource {}
 
 class _FakeImage extends Fake implements ui.Image {}
 
-class _MockAudioCubit extends MockCubit<AudioState> implements AudioCubit {}
-
-class _MockAudioPlayer extends Mock implements AudioPlayer {}
-
-class _MockImages extends Mock implements Images {}
-
-class _MockBgm extends Mock implements Bgm {}
-
-class _MockPreloadCubit extends MockCubit<PreloadState>
-    implements PreloadCubit {}
+class _MockStorage extends Mock implements Storage {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +36,10 @@ void main() {
   HttpOverrides.global = null;
 
   setUpAll(() {
+    final storage = _MockStorage();
+    when(() => storage.write(any(), any<dynamic>())).thenAnswer((_) async {});
+    HydratedBloc.storage = storage;
+
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           MethodChannel('xyz.luan/audioplayers'),
@@ -60,18 +60,22 @@ void main() {
   group('GamePage', () {
     late PreloadCubit preloadCubit;
     late Images images;
+    late LoreBloc loreBloc;
 
     setUpAll(() {
       registerFallbackValue(_FakeAssetSource());
     });
 
     setUp(() {
-      images = _MockImages();
+      images = MockImages();
       when(() => images.fromCache(any())).thenReturn(_FakeImage());
 
-      preloadCubit = _MockPreloadCubit();
+      preloadCubit = MockPreloadCubit();
       when(() => preloadCubit.audio).thenReturn(AudioCache(prefix: ''));
       when(() => preloadCubit.images).thenReturn(images);
+
+      loreBloc = MockLoreBloc();
+      when(() => loreBloc.state).thenReturn(LoreState.initial());
     });
 
     testWidgets('is routable', (tester) async {
@@ -84,6 +88,7 @@ void main() {
           ),
         ),
         preloadCubit: preloadCubit,
+        loreBloc: loreBloc,
       );
 
       await tester.tap(find.byType(FloatingActionButton));
@@ -97,36 +102,57 @@ void main() {
     });
 
     testWidgets('renders GameView', (tester) async {
-      await tester.pumpApp(const GamePage(), preloadCubit: preloadCubit);
+      await tester.pumpApp(
+        const GamePage(),
+        preloadCubit: preloadCubit,
+        loreBloc: loreBloc,
+      );
       expect(find.byType(GameView), findsOneWidget);
     });
   });
 
   group('GameView', () {
     late AudioCubit audioCubit;
+    late GameBloc gameBloc;
+    late LoreBloc loreBloc;
+    late CheckpointBloc checkpointBloc;
 
     setUp(() {
-      audioCubit = _MockAudioCubit();
+      audioCubit = MockAudioCubit();
       when(() => audioCubit.state).thenReturn(AudioState());
 
-      final effectPlayer = _MockAudioPlayer();
+      final effectPlayer = MockAudioPlayer();
       when(() => audioCubit.effectPlayer).thenReturn(effectPlayer);
-      final bgm = _MockBgm();
+      final bgm = MockBgm();
       when(() => audioCubit.bgm).thenReturn(bgm);
       when(() => bgm.play(any())).thenAnswer((_) async {});
       when(bgm.pause).thenAnswer((_) async {});
+
+      gameBloc = MockGameBloc();
+      when(() => gameBloc.state).thenReturn(GameState.initial());
+
+      loreBloc = MockLoreBloc();
+      when(() => loreBloc.state).thenReturn(LoreState.initial());
+
+      checkpointBloc = MockCheckpointBloc();
+      when(() => checkpointBloc.state).thenReturn(CheckpointState.initial());
     });
 
     testWidgets('toggles mute button correctly', (tester) async {
       final controller = StreamController<AudioState>();
       whenListen(audioCubit, controller.stream, initialState: AudioState());
 
-      final game = TestGame();
+      final game = TestBlackEchoGame(
+        gameBloc: gameBloc,
+        checkpointBloc: checkpointBloc,
+        loreBloc: loreBloc,
+      );
       await tester.pumpApp(
-        BlocProvider.value(
-          value: audioCubit,
-          child: Material(child: GameView(game: game)),
-        ),
+        GameView(game: game),
+        audioCubit: audioCubit,
+        gameBloc: gameBloc,
+        loreBloc: loreBloc,
+        checkpointBloc: checkpointBloc,
       );
 
       expect(find.byIcon(Icons.volume_up), findsOneWidget);
@@ -147,12 +173,17 @@ void main() {
       when(audioCubit.toggleVolume).thenAnswer((_) async {});
       whenListen(audioCubit, controller.stream, initialState: AudioState());
 
-      final game = TestGame();
+      final game = TestBlackEchoGame(
+        gameBloc: gameBloc,
+        checkpointBloc: checkpointBloc,
+        loreBloc: loreBloc,
+      );
       await tester.pumpApp(
-        BlocProvider.value(
-          value: audioCubit,
-          child: Material(child: GameView(game: game)),
-        ),
+        GameView(game: game),
+        audioCubit: audioCubit,
+        gameBloc: gameBloc,
+        loreBloc: loreBloc,
+        checkpointBloc: checkpointBloc,
       );
 
       await tester.tap(find.byIcon(Icons.volume_up));

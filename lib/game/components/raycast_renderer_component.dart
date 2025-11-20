@@ -7,7 +7,9 @@ import 'package:echo_world/game/entities/enemies/bruto.dart';
 import 'package:echo_world/game/level/level_manager.dart';
 import 'package:echo_world/game/level/level_models.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/painting.dart';
+import 'package:echo_world/game/components/echolocation_vfx_component.dart';
+import 'package:echo_world/game/components/rupture_vfx_component.dart';
+import 'package:flutter/material.dart';
 
 /// RaycastRendererComponent: Renderiza el mundo en falso 3D (raycasting).
 ///
@@ -54,13 +56,13 @@ import 'package:flutter/painting.dart';
 /// - Top-Down: Cámara sigue al jugador, vista ortogonal cenital (X, Y)
 /// - Side-Scroll: Cámara sigue al jugador, vista ortogonal lateral (X, Z)
 /// - First-Person: Cámara FIJA, raycaster proyecta desde jugador (3D falso)
-/// 
+///
 /// **ARQUITECTURA CRÍTICA:**
 /// Este componente implementa la vista FP real del juego según el GDD.
 /// A diferencia de un overlay de Flutter (CustomPainter), este componente
 /// se añade directamente al World de Flame y renderiza el nivel con raycasting
 /// procedural desde la posición y orientación del jugador.
-/// 
+///
 /// **FUNCIONAMIENTO:**
 /// 1. Lanza múltiples rayos (rayCount) en el FOV del jugador (60°).
 /// 2. Cada rayo marcha en el mundo (grid de nivel) detectando colisiones con:
@@ -69,24 +71,72 @@ import 'package:flutter/painting.dart';
 ///    - Enemigos (Cazador, Vigía, Bruto)
 /// 3. Proyecta cada colisión como una línea vertical en el canvas (columna).
 /// 4. Aplica sombreado por distancia y distingue entidades por color.
-/// 
+///
 /// **INTEGRACIÓN:**
 /// - Se añade al World cuando enfoqueActual == Enfoque.firstPerson.
 /// - Se quita del World cuando se cambia a otro enfoque.
 /// - El HUD de Flutter (_HudFirstPerson) solo muestra botones, no vista 3D.
-/// 
+///
 /// **RENDIMIENTO:**
 /// - Renderizado procedural (sin sprites ni texturas).
 /// - Optimizado para móvil con rayCount y rayStep configurables.
 /// - Priority -1000 para renderizar como fondo.
-class RaycastRendererComponent extends Component with HasGameRef<BlackEchoGame> {
+class RaycastRendererComponent extends Component
+    with HasGameRef<BlackEchoGame> {
   RaycastRendererComponent();
 
   // Configuración del raycasting
   static const double fov = math.pi / 3; // 60° field of view
-  static const int rayCount = 160; // Número de rayos a lanzar
+  static const int rayCount = 200; // Increased resolution
   static const double maxDepth = 20; // Profundidad máxima en tiles
   static const double rayStep = 0.05; // Paso de marcha para cada rayo
+
+  double _time = 0;
+  Vector2 _lastPosition = Vector2.zero();
+  double _walkTime = 0;
+
+  // Adaptive resolution
+  int _currentRayCount = 200;
+  double _frameTimeAccumulator = 0;
+  int _frameCount = 0;
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+
+    // Head bob logic
+    final player = game.player;
+    final dist = player.position.distanceTo(_lastPosition);
+    if (dist > 0.001) {
+      // Player is moving
+      _walkTime += dt * 10; // Adjust speed of bob
+    } else {
+      // Decay walk time to settle head bob
+      _walkTime = _walkTime % (math.pi * 2);
+      if (_walkTime > math.pi) {
+        _walkTime += dt * 5;
+      } else if (_walkTime > 0) {
+        _walkTime -= dt * 5;
+        if (_walkTime < 0) _walkTime = 0;
+      }
+    }
+    _lastPosition = player.position.clone();
+
+    // Adaptive resolution logic
+    _frameTimeAccumulator += dt;
+    _frameCount++;
+    if (_frameTimeAccumulator >= 1.0) {
+      final fps = _frameCount / _frameTimeAccumulator;
+      if (fps < 45 && _currentRayCount > 50) {
+        _currentRayCount -= 20; // Reduce quality
+      } else if (fps > 55 && _currentRayCount < 300) {
+        _currentRayCount += 10; // Increase quality
+      }
+      _frameTimeAccumulator = 0;
+      _frameCount = 0;
+    }
+  }
 
   @override
   void render(Canvas canvas) {
@@ -94,34 +144,40 @@ class RaycastRendererComponent extends Component with HasGameRef<BlackEchoGame> 
 
     final player = game.player;
     final grid = game.levelManager.currentGrid;
-    
+
     if (grid == null) return;
 
     const tile = LevelManagerComponent.tileSize;
-    
+
     // Usar el tamaño REAL del canvas del juego (toda la pantalla)
-    // NO usar viewport.virtualSize que es la resolución lógica
-    // game.canvasSize da el área real disponible para renderizar
     final renderSize = game.canvasSize;
-    
+
     // Asegurar que el raycast ocupe TODO el canvas sin dejar espacios
     canvas.clipRect(Rect.fromLTWH(0, 0, renderSize.x, renderSize.y));
-    
+
     final posX = player.position.x / tile;
     final posY = player.position.y / tile;
     final heading = player.heading;
 
+    // Head bob offset
+    final bobOffset = math.sin(_walkTime) * 10.0; // 10 pixels amplitude
+
     // Cielo y suelo (fondo)
     final skyPaint = Paint()..color = const Color(0xFF0B1C33);
     final floorPaint = Paint()..color = const Color(0xFF132A2A);
-    
+
     // NO aplicar transformación: renderizar en espacio de canvas directamente
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, renderSize.x, renderSize.y / 2),
+      Rect.fromLTWH(0, 0, renderSize.x, renderSize.y / 2 + bobOffset),
       skyPaint,
     );
     canvas.drawRect(
-      Rect.fromLTWH(0, renderSize.y / 2, renderSize.x, renderSize.y / 2),
+      Rect.fromLTWH(
+        0,
+        renderSize.y / 2 + bobOffset,
+        renderSize.x,
+        renderSize.y / 2 - bobOffset,
+      ),
       floorPaint,
     );
 
@@ -131,12 +187,41 @@ class RaycastRendererComponent extends Component with HasGameRef<BlackEchoGame> 
     final vigias = game.world.children.query<VigiaComponent>();
     final brutos = game.world.children.query<BrutoComponent>();
 
-    final colWidth = renderSize.x / rayCount;
+    final colWidth = renderSize.x / _currentRayCount;
 
     // Lanzar rayos
-    for (var i = 0; i < rayCount; i++) {
-      final rel = (i / (rayCount - 1)) - 0.5; // -0.5 a 0.5
-      final rayAng = heading + rel * fov;
+    final ruido = game.gameBloc.state.ruidoMental;
+    final glitchChance = ruido > 25 ? (ruido - 25) / 75.0 : 0.0;
+    final random = math.Random();
+
+    // Flicker effect based on noise
+    final flickerIntensity = (ruido / 100.0) * 0.2; // Up to 20% flicker
+    final globalFlicker = 1.0 + (random.nextDouble() - 0.5) * flickerIntensity;
+
+    // Obtener efectos activos
+    final echoes = game.world.children.query<EcholocationVfxComponent>();
+    final ruptures = game.world.children.query<RuptureVfxComponent>();
+
+    // Rupture effect (screen shake & flash)
+    double ruptureIntensity = 0.0;
+    if (ruptures.isNotEmpty) {
+      ruptureIntensity = ruptures.first.life / 0.5; // Aproximación
+    }
+
+    if (ruptureIntensity > 0) {
+      final shake = (random.nextDouble() - 0.5) * 20 * ruptureIntensity;
+      canvas.translate(shake, shake);
+    }
+
+    for (var i = 0; i < _currentRayCount; i++) {
+      final rel = (i / (_currentRayCount - 1)) - 0.5; // -0.5 a 0.5
+
+      // Glitch: Desplazamiento angular aleatorio
+      var rayAng = heading + rel * fov;
+      if (random.nextDouble() < glitchChance * 0.1) {
+        rayAng += (random.nextDouble() - 0.5) * 0.2;
+      }
+
       final dirX = math.cos(rayAng);
       final dirY = math.sin(rayAng);
 
@@ -221,22 +306,30 @@ class RaycastRendererComponent extends Component with HasGameRef<BlackEchoGame> 
 
       // Corrección de fisheye
       final perp = dist * math.cos(rayAng - heading);
-      final wallH = (renderSize.y) / (perp + 0.0001); // Usar altura completa del canvas
-      final yTop = ((renderSize.y / 2) - wallH / 2).clamp(0, renderSize.y);
+      final wallH =
+          (renderSize.y) / (perp + 0.0001); // Usar altura completa del canvas
+      final yTop = ((renderSize.y / 2) - wallH / 2 + bobOffset).clamp(
+        0,
+        renderSize.y,
+      );
       final yBottom = (yTop + wallH).clamp(0, renderSize.y);
 
       // Sombreado por distancia
       var shade = (1.0 - (perp / maxDepth)).clamp(0.1, 1.0);
       if (side) shade *= 0.75;
+      shade *= globalFlicker; // Apply flicker
 
       // Color según tipo de entidad
       Color color;
       if (entidadDetectada is NucleoResonanteComponent) {
-        color = Color.lerp(
+        // Pulse effect
+        final pulse = (math.sin(_time * 5) + 1) / 2;
+        final baseColor = Color.lerp(
           const Color(0xFFFFD700),
-          const Color(0xFF002233),
-          1 - shade,
+          const Color(0xFFFFAA00),
+          pulse,
         )!;
+        color = Color.lerp(baseColor, const Color(0xFF002233), 1 - shade)!;
       } else if (entidadDetectada is CazadorComponent) {
         color = Color.lerp(
           const Color(0xFFFF2222),
@@ -262,14 +355,58 @@ class RaycastRendererComponent extends Component with HasGameRef<BlackEchoGame> 
           const Color(0xFF002233),
           1 - shade,
         )!;
+
+        // ECHO EFFECT: Highlight walls intersected by echo pulse
+        for (final echo in echoes) {
+          final distToEcho = echo.position.distanceTo(
+            Vector2(hitX * tile, hitY * tile),
+          );
+          final radius = echo.radius;
+          // Si la pared está cerca del radio del eco (anillo)
+          if ((distToEcho - radius).abs() < 20.0) {
+            // 20 pixels thickness
+            color = Color.lerp(color, const Color(0xFF00FFFF), 0.8)!;
+            shade = 1.0; // Full brightness
+          }
+        }
+      }
+
+      // Glitch: Color corrupto (override)
+      if (random.nextDouble() < glitchChance * 0.05) {
+        // Random neon colors
+        final neonColors = [
+          const Color(0xFFFF00FF),
+          const Color(0xFF00FF00),
+          const Color(0xFF00FFFF),
+          const Color(0xFFFFFF00),
+        ];
+        color = neonColors[random.nextInt(neonColors.length)];
+        shade = 1.0; // Full brightness
       }
 
       final paint = Paint()
         ..color = color
         ..strokeWidth = colWidth + 1;
 
+      // Glitch: Desplazamiento vertical
+      var drawYTop = yTop.toDouble();
+      var drawYBottom = yBottom.toDouble();
+      if (random.nextDouble() < glitchChance * 0.02) {
+        final offset = (random.nextDouble() - 0.5) * 50;
+        drawYTop += offset;
+        drawYBottom += offset;
+      }
+
       final x = i * colWidth + colWidth / 2;
-      canvas.drawLine(Offset(x, yTop.toDouble()), Offset(x, yBottom.toDouble()), paint);
+      canvas.drawLine(Offset(x, drawYTop), Offset(x, drawYBottom), paint);
+    }
+
+    // Rupture Flash Overlay
+    if (ruptureIntensity > 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, renderSize.x, renderSize.y),
+        Paint()..color = Colors.white.withOpacity(ruptureIntensity * 0.3),
+      );
     }
   }
 

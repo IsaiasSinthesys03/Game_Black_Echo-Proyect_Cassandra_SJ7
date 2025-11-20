@@ -14,29 +14,10 @@ class WallComponent extends PositionComponent with CollisionCallbacks {
 
   final bool destructible;
 
-  // OBSOLETO: Ya no se usa, el batch renderer se encarga del renderizado
-  // final Paint _paint = Paint()
-  //   ..style = PaintingStyle.stroke
-  //   ..strokeWidth = 2
-  //   ..color = const Color(0xFF00FFFF);
-
   @override
   Future<void> onLoad() async {
     await add(RectangleHitbox());
   }
-
-  // OBSOLETO: Método render() comentado
-  // El BatchGeometryRenderer en LevelManager renderiza todas las paredes
-  // en un solo Picture (1 draw call) en lugar de llamar drawRect N veces.
-  // Esto mejora el rendimiento en ~90% en dispositivos móviles.
-  //
-  // @override
-  // void render(Canvas canvas) {
-  //   final paint = destructible
-  //       ? (_paint..color = const Color(0xFF66CCFF))
-  //       : _paint;
-  //   canvas.drawRect(Offset.zero & Size(size.x, size.y), paint);
-  // }
 
   void destroy() {
     if (destructible) {

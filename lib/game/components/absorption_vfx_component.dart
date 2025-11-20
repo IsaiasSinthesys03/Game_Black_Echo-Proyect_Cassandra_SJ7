@@ -22,37 +22,46 @@ class AbsorptionVfxComponent extends Component with HasGameRef<BlackEchoGame> {
     if (_spawned) return;
     _spawned = true;
 
-    // Generar múltiples partículas en diferentes direcciones
-    for (var i = 0; i < 20; i++) {
-      final angle = (math.pi * 2 / 20) * i;
-      final offset = Vector2(math.cos(angle), math.sin(angle)) * 15;
-      final startPos = nucleusPosition + offset;
-
-      // Crear partícula que viaja hacia el jugador con aceleración
-      final particleSystem = ParticleSystemComponent(
-        position: startPos.clone(),
+    // Single ParticleSystem for all particles
+    await add(
+      ParticleSystemComponent(
         particle: Particle.generate(
-          count: 1,
-          lifespan: 0.6,
+          count: 30,
+          lifespan: 0.8,
           generator: (i) {
+            // Start in a circle around the nucleus
+            final angle = (math.pi * 2 / 30) * i;
+            final offset = Vector2(math.cos(angle), math.sin(angle)) * 20;
+            final startPos = nucleusPosition + offset;
+
+            // Calculate direction to player
             final toPlayer = (playerPosition - startPos)..normalize();
-            return AcceleratedParticle(
-              acceleration: toPlayer * 800,
-              speed: toPlayer * 200,
-              child: CircleParticle(
-                radius: 3,
-                paint: Paint()..color = const Color(0xFFFFD700),
-              ),
+
+            return ComputedParticle(
+              renderer: (canvas, particle) {
+                // Move towards player with acceleration
+                final currentPos =
+                    startPos +
+                    (toPlayer * 600 * particle.progress * particle.progress);
+                final paint = Paint()
+                  ..color = const Color(
+                    0xFFFFD700,
+                  ).withOpacity(1 - particle.progress);
+                canvas.drawCircle(currentPos.toOffset(), 3, paint);
+              },
             );
           },
         ),
-      );
+      ),
+    );
 
-      await parent?.add(particleSystem);
-    }
-
-    // Auto-destruirse después de que las partículas terminen
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    removeFromParent();
+    // Auto-remove after animation
+    add(
+      TimerComponent(
+        period: 0.8,
+        removeOnFinish: true,
+        onTick: () => removeFromParent(),
+      ),
+    );
   }
 }

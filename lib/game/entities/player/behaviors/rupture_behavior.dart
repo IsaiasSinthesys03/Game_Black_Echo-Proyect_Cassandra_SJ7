@@ -2,13 +2,13 @@ import 'package:echo_world/game/audio/audio_manager.dart';
 // ignore: unused_import - Usado indirectamente para type casting de parent.game
 import 'package:echo_world/game/black_echo_game.dart';
 import 'package:echo_world/game/components/components.dart';
+import 'package:echo_world/game/components/rupture_vfx_component.dart';
 import 'package:echo_world/game/cubit/game/game_bloc.dart';
 import 'package:echo_world/game/entities/enemies/behaviors/behaviors.dart';
 import 'package:echo_world/game/entities/enemies/enemies.dart';
 import 'package:echo_world/game/entities/player/player.dart';
 import 'package:echo_world/game/level/level_models.dart';
-import 'package:flame/components.dart';
-import 'package:flame/particles.dart';
+
 import 'package:flame_behaviors/flame_behaviors.dart';
 import 'package:flutter/painting.dart';
 
@@ -29,24 +29,7 @@ class RuptureBehavior extends Behavior<PlayerComponent> {
     // VFX simple: sacudir cámara y añadir partículas
     game.shakeCamera(duration: 0.3);
     await game.world.add(
-      ParticleSystemComponent(
-        position: parent.position.clone(),
-        particle: Particle.generate(
-          count: 80,
-          lifespan: 0.3,
-          generator: (i) {
-            final dir = (Vector2.random() - Vector2(0.5, 0.5))..normalize();
-            return AcceleratedParticle(
-              acceleration: -dir * 50,
-              speed: dir * 600,
-              child: CircleParticle(
-                radius: 1.5,
-                paint: Paint()..color = const Color(0xFFFFFFFF),
-              ),
-            );
-          },
-        ),
-      ),
+      RuptureVfxComponent(origin: parent.position.clone()),
     );
 
     // Interacción: destruir paredes destructibles en radio

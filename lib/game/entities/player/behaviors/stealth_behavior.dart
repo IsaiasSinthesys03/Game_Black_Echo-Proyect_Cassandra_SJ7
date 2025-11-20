@@ -7,6 +7,6 @@ class StealthBehavior extends Behavior {
 
   @override
   void update(double dt) {
-    // TODO: Aplicar reducción de velocidad cuando estaAgachado == true
+    // La velocidad se reduce en TopDownMovementBehavior basado en el estado del BLoC
   }
 }
