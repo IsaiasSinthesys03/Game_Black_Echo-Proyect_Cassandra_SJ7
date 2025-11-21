@@ -1,4 +1,3 @@
-import 'package:echo_world/game/black_echo_game.dart';
 import 'package:echo_world/game/cubit/game/game_bloc.dart';
 import 'package:echo_world/game/entities/player/player.dart';
 import 'package:echo_world/game/level/level_models.dart';
@@ -20,25 +19,13 @@ class SideScrollMovementBehavior extends Behavior<PlayerComponent> {
     final dx = dir.x.clamp(-1, 1) * baseSpeed * dt;
     // Comprobación de colisiones horizontal (side-scroll)
     final proposedX = parent.position + Vector2(dx, 0);
-    final half = parent.size / 2;
-    final rectX = Rect.fromLTWH(
-      proposedX.x - half.x,
-      proposedX.y - half.y,
-      parent.size.x,
-      parent.size.y,
-    );
-    try {
-      // Navegar por el árbol de componentes para encontrar levelManager
-      final game = parent.findParent<BlackEchoGame>();
-      if (game != null) {
-        if (game.levelManager.isRectWalkable(rectX)) {
-          parent.position.x = proposedX.x;
-        }
-      } else {
-        parent.position.x += dx; // fallback
-      }
-    } catch (_) {
-      parent.position.x += dx; // fallback
+
+    // Usar el collisionRect del jugador pero desplazado a la posición propuesta
+    final currentRect = parent.collisionRect;
+    final rectX = currentRect.shift(Offset(dx, 0));
+
+    if (game.levelManager.isRectWalkable(rectX)) {
+      parent.position.x = proposedX.x;
     }
 
     // Emitir pasos cada cierto desplazamiento horizontal

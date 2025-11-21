@@ -385,12 +385,13 @@ class RaycastRendererComponent extends Component
 
       // Glitch: Color corrupto (override)
       if (random.nextDouble() < glitchChance * 0.05) {
-        // Random neon colors
+        // Random neon colors with Violet preference
         final neonColors = [
-          const Color(0xFFFF00FF),
-          const Color(0xFF00FF00),
-          const Color(0xFF00FFFF),
-          const Color(0xFFFFFF00),
+          const Color(0xFF8A2BE2), // Violet (Theme)
+          const Color(0xFFFF00FF), // Magenta
+          const Color(0xFF00FF00), // Green
+          const Color(0xFF00FFFF), // Cyan
+          const Color(0xFF8A2BE2), // Violet again for higher weight
         ];
         color = neonColors[random.nextInt(neonColors.length)];
         shade = 1.0; // Full brightness
@@ -400,13 +401,22 @@ class RaycastRendererComponent extends Component
         ..color = color
         ..strokeWidth = colWidth + 1;
 
-      // Glitch: Desplazamiento vertical
+      // Glitch: Desplazamiento vertical (Wave + Random)
       var drawYTop = yTop.toDouble();
       var drawYBottom = yBottom.toDouble();
-      if (random.nextDouble() < glitchChance * 0.02) {
-        final offset = (random.nextDouble() - 0.5) * 50;
-        drawYTop += offset;
-        drawYBottom += offset;
+
+      if (glitchChance > 0) {
+        // Wave effect based on time and x position
+        final wave = math.sin(_time * 20 + i * 0.1) * (glitchChance * 10);
+        drawYTop += wave;
+        drawYBottom += wave;
+
+        // Random tearing
+        if (random.nextDouble() < glitchChance * 0.02) {
+          final offset = (random.nextDouble() - 0.5) * 50;
+          drawYTop += offset;
+          drawYBottom += offset;
+        }
       }
 
       final x = i * colWidth + colWidth / 2;

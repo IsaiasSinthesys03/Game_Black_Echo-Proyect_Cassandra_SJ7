@@ -4,7 +4,8 @@ import 'package:echo_world/game/cubit/game/game_bloc.dart';
 import 'package:echo_world/game/entities/player/player.dart';
 import 'package:echo_world/game/level/level_models.dart';
 import 'dart:math' as math;
-import 'dart:ui';
+
+import 'package:echo_world/game/entities/player/behaviors/collision_handler.dart';
 
 /// Comportamiento de movimiento en primera persona.
 ///
@@ -16,7 +17,8 @@ import 'dart:ui';
 /// - Velocidad máxima: 128 px/s (normal) / 56 px/s (sigilo)
 /// - Rotación: 1.5 rad/s (~86°/s) con aceleración suave
 /// - El heading se sincroniza con PlayerComponent para el raycaster
-class FirstPersonMovementBehavior extends Behavior {
+class FirstPersonMovementBehavior extends Behavior<PlayerComponent>
+    with CollisionHandler {
   FirstPersonMovementBehavior({required this.gameBloc});
   final GameBloc gameBloc;
 
@@ -36,9 +38,7 @@ class FirstPersonMovementBehavior extends Behavior {
 
   @override
   void update(double dt) {
-    if (parent is! PlayerComponent) return;
-
-    final player = parent as PlayerComponent;
+    final player = parent;
     final game = player.gameRef;
     final input = game.input;
 
@@ -71,44 +71,10 @@ class FirstPersonMovementBehavior extends Behavior {
     // Calcular desplazamiento en dirección del heading
     final dx = speed * dt * math.cos(player.heading);
     final dy = speed * dt * math.sin(player.heading);
+    final moveDelta = Vector2(dx, dy);
 
-    // Intentar desplazar con comprobación de colisiones contra el grid
-    final proposed = player.position + Vector2(dx, dy);
-    final half = player.size / 2;
-    final rectFull = Rect.fromLTWH(
-      proposed.x - half.x,
-      proposed.y - half.y,
-      player.size.x,
-      player.size.y,
-    );
-
-    // Si el área completa es libre, aplicar movimiento
-    if (game.levelManager.isRectWalkable(rectFull)) {
-      player.position.setFrom(proposed);
-    } else {
-      // Separar ejes (permitir deslizar): intentar X y luego Y
-      final proposedX = player.position + Vector2(dx, 0);
-      final rectX = Rect.fromLTWH(
-        proposedX.x - half.x,
-        proposedX.y - half.y,
-        player.size.x,
-        player.size.y,
-      );
-      if (game.levelManager.isRectWalkable(rectX)) {
-        player.position.setFrom(proposedX);
-      }
-
-      final proposedY = player.position + Vector2(0, dy);
-      final rectY = Rect.fromLTWH(
-        proposedY.x - half.x,
-        proposedY.y - half.y,
-        player.size.x,
-        player.size.y,
-      );
-      if (game.levelManager.isRectWalkable(rectY)) {
-        player.position.setFrom(proposedY);
-      }
-    }
+    // Comprobación de colisiones (usando CollisionHandler)
+    moveWithCollision(moveDelta);
 
     // Emitir sonido de pasos
     if (speed.abs() > 0.1) {

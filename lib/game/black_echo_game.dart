@@ -5,6 +5,7 @@ import 'dart:ui'
 
 import 'package:echo_world/game/audio/audio_manager.dart';
 import 'package:echo_world/game/components/components.dart';
+import 'package:echo_world/game/components/screen_transition_component.dart';
 import 'package:echo_world/game/cubit/game/game_bloc.dart';
 import 'package:echo_world/game/cubit/game/game_state.dart';
 import 'package:echo_world/game/cubit/checkpoint/cubit.dart';
@@ -110,9 +111,17 @@ class BlackEchoGame extends FlameGame with HasCollisionDetection {
 
       // Actualizar enfoque del jugador y ajustar cámara cuando cambie
       if (newState.enfoqueActual != _lastEnfoque) {
-        player.setEnfoque(newState.enfoqueActual);
-        _ajustarCamara(newState.enfoqueActual);
-        _lastEnfoque = newState.enfoqueActual;
+        final targetEnfoque = newState.enfoqueActual;
+        _lastEnfoque = targetEnfoque;
+
+        add(
+          ScreenTransitionComponent(
+            onTransition: () {
+              player.setEnfoque(targetEnfoque);
+              _ajustarCamara(targetEnfoque);
+            },
+          ),
+        );
       }
 
       // Actualizar volumen del tinnitus según ruidoMental
@@ -231,6 +240,20 @@ class BlackEchoGame extends FlameGame with HasCollisionDetection {
       AudioManager.instance.stopPositionalLoop(_tinnitusLoopId!);
     }
     super.onRemove();
+  }
+
+  @override
+  void lifecycleStateChange(ui.AppLifecycleState state) {
+    super.lifecycleStateChange(state);
+    switch (state) {
+      case ui.AppLifecycleState.paused:
+      case ui.AppLifecycleState.detached:
+      case ui.AppLifecycleState.inactive:
+      case ui.AppLifecycleState.hidden:
+        AudioManager.instance.pauseAllWithMemory();
+      case ui.AppLifecycleState.resumed:
+        AudioManager.instance.resumeAllWithMemory();
+    }
   }
 
   void shakeCamera({double intensity = 5, double duration = 0.3}) {

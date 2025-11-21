@@ -26,6 +26,25 @@ class AudioManager {
     if (_isInitialized) return;
 
     try {
+      // Configurar el contexto de audio para juegos (baja latencia, foco)
+      await AudioPlayer.global.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: true,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.game,
+            audioFocus: AndroidAudioFocus.gain,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: {
+              AVAudioSessionOptions.mixWithOthers,
+            },
+          ),
+        ),
+      );
+
       // SFX del jugador
       await _preloadSound('eco_ping', poolSize: 3);
       await _preloadSound('rupture_blast', poolSize: 2);
@@ -49,7 +68,7 @@ class AudioManager {
       _isInitialized = true;
       debugPrint('[AudioManager] Preload completo');
     } catch (e) {
-      debugPrint('[AudioManager] Error en preload: $e');
+      debugPrint('[AudioManager] Error CRÍTICO en preload: $e');
     }
   }
 
@@ -64,7 +83,9 @@ class AudioManager {
         await player.setSource(AssetSource('audio/$soundId.wav'));
         players.add(player);
       } catch (e) {
-        debugPrint('[AudioManager] Error cargando $soundId: $e');
+        debugPrint(
+          '[AudioManager] FALLO al cargar asset: audio/$soundId.wav. Error: $e',
+        );
         // Si falla, añadir player vacío para mantener consistencia del pool
         players.add(player);
       }
@@ -271,5 +292,58 @@ class AudioManager {
     _pools.clear();
     _isLoaded.clear();
     _isInitialized = false;
+  }
+
+  /// Pausa todos los sonidos activos (para cuando la app va a segundo plano)
+  Future<void> pauseAll() async {
+    for (final pool in _pools.values) {
+      for (final player in pool) {
+        if (player.state == PlayerState.playing) {
+          await player.pause();
+        }
+      }
+    }
+    for (final player in _positionalLoops.values) {
+      if (player.state == PlayerState.playing) {
+        await player.pause();
+      }
+    }
+  }
+
+  /// Reanuda los sonidos que estaban pausados (al volver a primer plano)
+  /// Nota: Esto es simplificado, idealmente deberíamos trackear cuáles estaban sonando.
+  /// Por ahora, asumimos que si estaba en 'playing' antes de pauseAll, debería reanudarse,
+  /// pero PlayerState.paused es el estado después de pause().
+  /// Una mejor estrategia es pausar el contexto o mutear.
+  /// Sin embargo, audioplayers no tiene "pause context".
+  /// Vamos a usar setMasterVolume(0) para "silenciar" globalmente si es más fácil,
+  /// pero pause() ahorra CPU.
+  ///
+  /// Estrategia mejorada: Guardar lista de players pausados por nosotros.
+  final List<AudioPlayer> _pausedByApp = [];
+
+  Future<void> pauseAllWithMemory() async {
+    _pausedByApp.clear();
+    for (final pool in _pools.values) {
+      for (final player in pool) {
+        if (player.state == PlayerState.playing) {
+          await player.pause();
+          _pausedByApp.add(player);
+        }
+      }
+    }
+    for (final player in _positionalLoops.values) {
+      if (player.state == PlayerState.playing) {
+        await player.pause();
+        _pausedByApp.add(player);
+      }
+    }
+  }
+
+  Future<void> resumeAllWithMemory() async {
+    for (final player in _pausedByApp) {
+      await player.resume();
+    }
+    _pausedByApp.clear();
   }
 }

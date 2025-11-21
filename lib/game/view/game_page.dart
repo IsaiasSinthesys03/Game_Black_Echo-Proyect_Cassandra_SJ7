@@ -121,10 +121,8 @@ class _GameViewState extends State<GameView> {
               if (state.ruidoMental <= 25) return const SizedBox.shrink();
               return Positioned.fill(
                 child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _RuidoMentalPainter(
-                      intensity: state.ruidoMental / 100,
-                    ),
+                  child: _RuidoMentalOverlay(
+                    intensity: state.ruidoMental / 100,
                   ),
                 ),
               );
@@ -1171,9 +1169,57 @@ class _OverlayFracaso extends StatelessWidget {
 
 /// CustomPainter para renderizar el VFX de ruido mental.
 /// Dibuja estática, viñeta y efectos de glitch según la intensidad (0.0 - 1.0).
+class _RuidoMentalOverlay extends StatefulWidget {
+  const _RuidoMentalOverlay({required this.intensity});
+  final double intensity;
+
+  @override
+  State<_RuidoMentalOverlay> createState() => _RuidoMentalOverlayState();
+}
+
+class _RuidoMentalOverlayState extends State<_RuidoMentalOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Duration arbitrary, just to drive the tick
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _RuidoMentalPainter(
+            intensity: widget.intensity,
+            tick: _controller.value,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// CustomPainter para renderizar el VFX de ruido mental.
+/// Dibuja estática, viñeta y efectos de glitch según la intensidad (0.0 - 1.0).
 class _RuidoMentalPainter extends CustomPainter {
-  _RuidoMentalPainter({required this.intensity});
+  _RuidoMentalPainter({required this.intensity, required this.tick});
   final double intensity; // 0.0 a 1.0
+  final double tick; // 0.0 a 1.0 (animación)
+
   // Cache estática para reducir costo por frame.
   static List<Rect> _cachedRects = [];
   static Size? _cachedSize;
@@ -1207,28 +1253,39 @@ class _RuidoMentalPainter extends CustomPainter {
         _cachedRects.add(Rect.fromLTWH(x, y, w, h));
       }
     }
+
+    // Animar la estática cambiando cuáles se dibujan o su opacidad
+    // Usamos el tick para variar el "seed" visual de la estática
     final drawCount = (_maxRects * intensity).toInt();
     final staticPaint = Paint()
       ..color = Colors.white.withOpacity(intensity * 0.12);
+
+    // Desplazamiento de índice basado en el tiempo para que la estática "baile"
+    final indexOffset = (tick * 100).toInt();
+
     for (var i = 0; i < drawCount; i++) {
-      canvas.drawRect(_cachedRects[i], staticPaint);
+      final index = (i + indexOffset) % _cachedRects.length;
+      canvas.drawRect(_cachedRects[index], staticPaint);
     }
 
     // 3. Glitch (traslación de bandas horizontales)
     if (intensity > 0.5) {
       canvas.save();
-      final phase = DateTime.now().millisecondsSinceEpoch % 400;
-      final glitchOffset = ((phase / 400.0) * 20 - 10) * (intensity - 0.5);
+      // Usar tick para el desplazamiento en lugar de DateTime.now()
+      final glitchOffset = ((tick * 20) % 20 - 10) * (intensity - 0.5);
       canvas.translate(glitchOffset, 0);
       final glitchPaint = Paint()
         ..color = const Color(0xFF8A2BE2).withOpacity((intensity - 0.5) * 0.4)
         ..blendMode = BlendMode.screen;
       for (var i = 0; i < 5; i++) {
         final y = (size.height / 5) * i;
-        canvas.drawRect(
-          Rect.fromLTWH(0, y, size.width, size.height / 5),
-          glitchPaint,
-        );
+        // Variar ligeramente por banda
+        if ((i + (tick * 10).toInt()) % 2 == 0) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, y, size.width, size.height / 5),
+            glitchPaint,
+          );
+        }
       }
       canvas.restore();
     }
@@ -1236,6 +1293,6 @@ class _RuidoMentalPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RuidoMentalPainter oldDelegate) {
-    return oldDelegate.intensity != intensity;
+    return oldDelegate.intensity != intensity || oldDelegate.tick != tick;
   }
 }

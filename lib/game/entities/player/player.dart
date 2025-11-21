@@ -37,13 +37,31 @@ class PlayerComponent extends PositionedEntity
   // Heading in radians for FP mode
   double heading = 0;
   final GameBloc gameBloc;
-
   final Paint _paint;
 
   @override
   Future<void> onLoad() async {
-    await add(RectangleHitbox(size: size, anchor: Anchor.center));
+    add(
+      RectangleHitbox.relative(
+        Vector2.all(0.8),
+        parentSize: size,
+        anchor: Anchor.center,
+      ),
+    );
     setEnfoque(gameBloc.state.enfoqueActual);
+  }
+
+  /// Rectángulo de colisión estandarizado para todos los behaviors.
+  /// Usa el 80% del tamaño visual para evitar enganches en esquinas.
+  Rect get collisionRect {
+    final reducedSize = size * 0.8;
+    final half = reducedSize / 2;
+    return Rect.fromLTWH(
+      position.x - half.x,
+      position.y - half.y,
+      reducedSize.x,
+      reducedSize.y,
+    );
   }
 
   void setEnfoque(Enfoque nuevo) {
@@ -79,11 +97,29 @@ class PlayerComponent extends PositionedEntity
 
   @override
   void render(Canvas canvas) {
-    // NO renderizar en first-person: el raycaster proyecta la vista desde el jugador
     if (gameBloc.state.enfoqueActual == Enfoque.firstPerson) return;
 
-    // Render simple del jugador: círculo cyan (solo en top-down y side-scroll)
-    canvas.drawCircle(Offset.zero, size.x * 0.5, _paint);
+    // Debug: Draw collision rect
+    if (debugMode) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          (size.x - collisionRect.width) / 2,
+          (size.y - collisionRect.height) / 2,
+          collisionRect.width,
+          collisionRect.height,
+        ),
+        Paint()
+          ..color = const Color(0xFFFF0000).withOpacity(0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+
+    canvas.drawCircle(
+      Offset(size.x / 2, size.y / 2),
+      size.x / 2,
+      _paint,
+    );
   }
 
   void jump() {
